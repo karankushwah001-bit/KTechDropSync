@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+          cache-dependency-path: 'KTechDropSyncElite/package-lock.json'
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -29,14 +30,18 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          cd KTechDropSyncElite
+          npm install
 
       - name: Expo Prebuild
-        run: npx expo prebuild --platform android
+        run: |
+          cd KTechDropSyncElite
+          npx expo prebuild --platform android
 
       - name: Build Android APK
         run: |
-          cd android
+          cd KTechDropSyncElite/android
           chmod +x gradlew
           ./gradlew assembleRelease
 
@@ -44,4 +49,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: KTechDropSync-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: KTechDropSyncElite/android/app/build/outputs/apk/release/app-release.apk
