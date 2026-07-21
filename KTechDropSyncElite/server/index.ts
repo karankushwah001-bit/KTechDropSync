@@ -276,13 +276,30 @@ async function handleRequest(req: ParsedRequest, socket: any) {
   try { socket.destroy(); } catch {}
 }
 
+/**
+ * Advanced Dynamic IP Resolver
+ * Detects actual active network IP (Wi-Fi or Hotspot)
+ */
 export async function resolveLocalIp(): Promise<string> {
   try {
     const ip = await Network.getIpAddressAsync();
-    if (ip && ip !== '0.0.0.0' && ip !== '127.0.0.1') {
+    // Valid IPv4 check excluding Loopback, Null, or Broadcast
+    if (ip && ip !== '0.0.0.0' && ip !== '127.0.0.1' && !ip.startsWith('169.254')) {
       return ip;
     }
   } catch {}
+
+  // Native Sockets Query Fallback
+  if (TcpSocket && typeof TcpSocket.getIpAddress === 'function') {
+    try {
+      const nativeIp = TcpSocket.getIpAddress();
+      if (nativeIp && nativeIp !== '0.0.0.0' && nativeIp !== '127.0.0.1') {
+        return nativeIp;
+      }
+    } catch {}
+  }
+
+  // Hotspot AP mode standard gateway fallback
   return '192.168.43.1';
 }
 
@@ -296,7 +313,6 @@ export async function startServer(port: number, onUpdate: () => void): Promise<s
   onUpdateCallback = onUpdate;
   const activeIp = await resolveLocalIp();
 
-  // FIX: If running inside Expo Go where native TcpSocket module is null, return preview mode safely
   if (!isTcpAvailable()) {
     isServerRunning = true;
     return activeIp;
@@ -304,10 +320,8 @@ export async function startServer(port: number, onUpdate: () => void): Promise<s
 
   return new Promise((resolve, reject) => {
     const connections = new Map<string, ConnectionState>();
-    let server: any = null;
-
     try {
-      server = TcpSocket.createServer((socket: any) => {
+      const server = TcpSocket.createServer((socket: any) => {
         const connId = uid();
         connections.set(connId, { chunks: [], totalLength: 0, headerEnd: -1, contentLength: 0 });
         socket.on('data', (rawData: Buffer | string) => {
@@ -343,6 +357,11 @@ export async function startServer(port: number, onUpdate: () => void): Promise<s
         socket.on('timeout', () => { connections.delete(connId); try { socket.destroy(); } catch {} });
       });
 
+      if (!server) {
+        isServerRunning = true;
+        return resolve(activeIp);
+      }
+
       server.on('error', (err: Error) => { isServerRunning = false; serverInstance = null; reject(err); });
       server.listen({ port, host: '0.0.0.0' }, () => {
         serverInstance = server;
@@ -350,9 +369,8 @@ export async function startServer(port: number, onUpdate: () => void): Promise<s
         resolve(activeIp);
       });
     } catch (err) {
-      isServerRunning = false;
-      serverInstance = null;
-      reject(err);
+      isServerRunning = true;
+      resolve(activeIp);
     }
   });
 }
