@@ -84,7 +84,7 @@ export function ServerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (state.isRunning) {
-      pollRef.current = setInterval(refreshAll, 3000);
+      pollRef.current = setInterval(refreshAll, 2000);
     } else {
       if (pollRef.current) clearInterval(pollRef.current);
     }
@@ -103,6 +103,8 @@ export function ServerProvider({ children }: { children: React.ReactNode }) {
       setState(prev => ({ ...prev, isRunning: true, ip: resolvedIp, isStarting: false, error: null }));
     } catch (err: any) {
       setState(prev => ({ ...prev, isStarting: false, error: err?.message ?? 'Failed to start server' }));
+    } finally {
+      setState(prev => ({ ...prev, isStarting: false }));
     }
   }, [refreshFiles]);
 
